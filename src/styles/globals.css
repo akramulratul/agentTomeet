@@ -1,70 +1,50 @@
-* {
-  box-sizing: border-box;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-html {
-  color-scheme: dark;
-  background-color: #111;
-}
-
-html,
 body {
-  overflow: hidden;
+  background: black;
 }
 
-html,
-body,
-#__next,
-main {
+#__next {
   width: 100%;
-  height: 100%;
-  margin: 0px;
+  height: 100dvh;
 }
 
-.header {
-  max-width: 500px;
-  padding-inline: 2rem;
+.repeating-square-background {
+  background-size: 18px 18px;
+  background-repeat: repeat;
+  background-image: url("data:image/svg+xml,%3Csvg width='18' height='18' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='0' y='0' width='2' height='2' fill='rgba(255, 255, 255, 0.03)' /%3E%3C/svg%3E");
 }
 
-.header > img {
-  display: block;
-  margin: auto;
-  max-width: 100%;
+.cursor-animation {
+  animation: fadeIn 0.5s ease-in-out alternate-reverse infinite;
 }
 
-.header > h2 {
-  font-family: "TWK Everett", sans-serif;
-  font-style: normal;
-  font-weight: 400;
-  font-size: 1.25rem;
-  line-height: 144%;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.6);
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 5px;
 }
 
-footer {
-  position: absolute;
-  bottom: 0;
-  width: 100%;
-  padding: 1.5rem 2rem;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.6);
-  background-color: var(--lk-bg);
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
 }
 
-footer a,
-h2 a {
-  color: #ff6352;
-  text-decoration-color: #a33529;
-  text-underline-offset: 0.125em;
+::-webkit-scrollbar-thumb:hover {
+  background: #555; /* Even lighter grey thumb on hover */
 }
 
-footer a:hover,
-h2 a {
-  text-decoration-color: #ff6352;
+::-webkit-scrollbar {
+  width: 10px;
+  border-radius: 5px;
 }
 
-h2 a {
-  text-decoration: none;
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }

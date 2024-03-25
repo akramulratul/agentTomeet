@@ -1,243 +1,184 @@
-import type { GetServerSideProps, InferGetServerSidePropsType } from "next";
-import { useRouter } from "next/router";
-import React, { ReactElement, useState } from "react";
+import { generateRandomAlphanumeric } from "@/lib/util";
 import {
-  encodePassphrase,
-  generateRoomId,
-  randomString,
-} from "../lib/client-utils";
-import styles from "../styles/Home.module.css";
+  LiveKitRoom,
+  RoomAudioRenderer,
+  StartAudio,
+  useToken,
+} from "@livekit/components-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Inter } from "next/font/google";
+import Head from "next/head";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-interface TabsProps {
-  children: ReactElement[];
-  selectedIndex?: number;
-  onTabSelected?: (index: number) => void;
-}
+import { PlaygroundConnect } from "@/components/PlaygroundConnect";
+import Playground, {
+  PlaygroundMeta,
+  PlaygroundOutputs,
+} from "@/components/playground/Playground";
+import { PlaygroundToast, ToastType } from "@/components/toast/PlaygroundToast";
+import { useAppConfig } from "@/hooks/useAppConfig";
 
-function Tabs(props: TabsProps) {
-  const activeIndex = props.selectedIndex ?? 0;
-  if (!props.children) {
-    return <></>;
-  }
+const themeColors = [
+  "cyan",
+  "green",
+  "amber",
+  "blue",
+  "violet",
+  "rose",
+  "pink",
+  "teal",
+];
 
-  let tabs = React.Children.map(props.children, (child, index) => {
-    return (
-      <button
-        className="lk-button"
-        onClick={() => {
-          if (props.onTabSelected) props.onTabSelected(index);
-        }}
-        aria-pressed={activeIndex === index}
-      >
-        {child?.props.label}
-      </button>
-    );
-  });
-  return (
-    <div className={styles.tabContainer}>
-      <div className={styles.tabSelect}>{tabs}</div>
-      {props.children[activeIndex]}
-    </div>
+const inter = Inter({ subsets: ["latin"] });
+
+export default function Home() {
+  const [toastMessage, setToastMessage] = useState<{
+    message: string;
+    type: ToastType;
+  } | null>(null);
+  const [shouldConnect, setShouldConnect] = useState(false);
+  const [liveKitUrl, setLiveKitUrl] = useState(
+    process.env.NEXT_PUBLIC_LIVEKIT_URL
   );
-}
+  const [customToken, setCustomToken] = useState<string>();
+  const [metadata, setMetadata] = useState<PlaygroundMeta[]>([]);
 
-function DemoMeetingTab({ label }: { label: string }) {
-  const router = useRouter();
-  const [e2ee, setE2ee] = useState(false);
-  const [sharedPassphrase, setSharedPassphrase] = useState(randomString(64));
-  const startMeeting = () => {
-    if (e2ee) {
-      router.push(
-        `/rooms/${generateRoomId()}#${encodePassphrase(sharedPassphrase)}`
-      );
-    } else {
-      router.push(`/rooms/${generateRoomId()}`);
+  const [roomName, setRoomName] = useState(createRoomName());
+
+  const tokenOptions = useMemo(() => {
+    return {
+      userInfo: { identity: generateRandomAlphanumeric(16) },
+    };
+  }, []);
+
+  // set a new room name each time the user disconnects so that a new token gets fetched behind the scenes for a different room
+  useEffect(() => {
+    if (shouldConnect === false) {
+      setRoomName(createRoomName());
     }
-  };
-  return (
-    <div className={styles.tabContent}>
-      <p style={{ margin: 0 }}>
-        Try LiveKit Meet for free with our live demo project.
-      </p>
-      <button
-        style={{ marginTop: "1rem" }}
-        className="lk-button"
-        onClick={startMeeting}
-      >
-        Start Meeting
-      </button>
-      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        <div style={{ display: "flex", flexDirection: "row", gap: "1rem" }}>
-          <input
-            id="use-e2ee"
-            type="checkbox"
-            checked={e2ee}
-            onChange={(ev) => setE2ee(ev.target.checked)}
-          ></input>
-          <label htmlFor="use-e2ee">Enable end-to-end encryption</label>
-        </div>
-        {e2ee && (
-          <div style={{ display: "flex", flexDirection: "row", gap: "1rem" }}>
-            <label htmlFor="passphrase">Passphrase</label>
-            <input
-              id="passphrase"
-              type="password"
-              value={sharedPassphrase}
-              onChange={(ev) => setSharedPassphrase(ev.target.value)}
-            />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+  }, [shouldConnect]);
 
-function CustomConnectionTab({ label }: { label: string }) {
-  const router = useRouter();
-
-  const [e2ee, setE2ee] = useState(false);
-  const [sharedPassphrase, setSharedPassphrase] = useState(randomString(64));
-
-  const onSubmit: React.FormEventHandler<HTMLFormElement> = (event) => {
-    event.preventDefault();
-    const formData = new FormData(event.target as HTMLFormElement);
-    const serverUrl = formData.get("serverUrl");
-    const token = formData.get("token");
-    if (e2ee) {
-      router.push(
-        `/custom/?liveKitUrl=${serverUrl}&token=${token}#${encodePassphrase(
-          sharedPassphrase
-        )}`
-      );
-    } else {
-      router.push(`/custom/?liveKitUrl=${serverUrl}&token=${token}`);
+  useEffect(() => {
+    const md: PlaygroundMeta[] = [];
+    if (liveKitUrl && liveKitUrl !== process.env.NEXT_PUBLIC_LIVEKIT_URL) {
+      md.push({ name: "LiveKit URL", value: liveKitUrl });
     }
-  };
-  return (
-    <form className={styles.tabContent} onSubmit={onSubmit}>
-      <p style={{ marginTop: 0 }}>
-        Connect LiveKit Meet with a custom server using LiveKit Cloud or LiveKit
-        Server.
-      </p>
-      <input
-        id="serverUrl"
-        name="serverUrl"
-        type="url"
-        placeholder="LiveKit Server URL: wss://*.livekit.cloud"
-        required
-      />
-      <textarea
-        id="token"
-        name="token"
-        placeholder="Token"
-        required
-        rows={5}
-        style={{
-          padding: "1px 2px",
-          fontSize: "inherit",
-          lineHeight: "inherit",
-        }}
-      />
-      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        <div style={{ display: "flex", flexDirection: "row", gap: "1rem" }}>
-          <input
-            id="use-e2ee"
-            type="checkbox"
-            checked={e2ee}
-            onChange={(ev) => setE2ee(ev.target.checked)}
-          ></input>
-          <label htmlFor="use-e2ee">Enable end-to-end encryption</label>
-        </div>
-        {e2ee && (
-          <div style={{ display: "flex", flexDirection: "row", gap: "1rem" }}>
-            <label htmlFor="passphrase">Passphrase</label>
-            <input
-              id="passphrase"
-              type="password"
-              value={sharedPassphrase}
-              onChange={(ev) => setSharedPassphrase(ev.target.value)}
-            />
-          </div>
-        )}
-      </div>
+    if (!customToken && tokenOptions.userInfo?.identity) {
+      md.push({ name: "Room Name", value: roomName });
+      md.push({
+        name: "Participant Identity",
+        value: tokenOptions.userInfo.identity,
+      });
+    }
+    setMetadata(md);
+  }, [liveKitUrl, roomName, tokenOptions, customToken]);
 
-      <hr
-        style={{
-          width: "100%",
-          borderColor: "rgba(255, 255, 255, 0.15)",
-          marginBlock: "1rem",
-        }}
-      />
-      <button
-        style={{ paddingInline: "1.25rem", width: "100%" }}
-        className="lk-button"
-        type="submit"
-      >
-        Connect
-      </button>
-    </form>
+  const token = useToken("/api/token", roomName, tokenOptions);
+  const appConfig = useAppConfig();
+  const outputs = [
+    appConfig?.outputs.audio && PlaygroundOutputs.Audio,
+    appConfig?.outputs.video && PlaygroundOutputs.Video,
+    appConfig?.outputs.chat && PlaygroundOutputs.Chat,
+  ].filter((item) => typeof item !== "boolean") as PlaygroundOutputs[];
+
+  const handleConnect = useCallback(
+    (connect: boolean, opts?: { url: string; token: string }) => {
+      if (connect && opts) {
+        setLiveKitUrl(opts.url);
+        setCustomToken(opts.token);
+      }
+      setShouldConnect(connect);
+    },
+    []
   );
-}
 
-export const getServerSideProps: GetServerSideProps<{
-  tabIndex: number;
-}> = async ({ query, res }) => {
-  res.setHeader("Cache-Control", "public, max-age=7200");
-  const tabIndex = query.tab === "custom" ? 1 : 0;
-  return { props: { tabIndex } };
-};
-
-const Home = ({
-  tabIndex,
-}: InferGetServerSidePropsType<typeof getServerSideProps>) => {
-  const router = useRouter();
-  function onTabSelected(index: number) {
-    const tab = index === 1 ? "custom" : "demo";
-    router.push({ query: { tab } });
-  }
   return (
     <>
-      <main className={styles.main} data-lk-theme="default">
-        <div className="header">
-          <img
-            src="/images/livekit-meet-home.svg"
-            alt="LiveKit Meet"
-            width="360"
-            height="45"
-          />
-          <h2>
-            Open source video conferencing app built on{" "}
-            <a
-              href="https://github.com/livekit/components-js?ref=meet"
-              rel="noopener"
+      <Head>
+        <title>{appConfig?.title ?? "LiveKit Agents Playground"}</title>
+        <meta
+          name="description"
+          content={
+            appConfig?.description ??
+            "Quickly prototype and test your multimodal agents"
+          }
+        />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+        />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+        <meta
+          property="og:image"
+          content="https://livekit.io/images/og/agents-playground.png"
+        />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+      <main className="relative flex flex-col justify-center px-4 items-center h-full w-full bg-black repeating-square-background">
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              className="left-0 right-0 top-0 absolute z-10"
+              initial={{ opacity: 0, translateY: -50 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              exit={{ opacity: 0, translateY: -50 }}
             >
-              LiveKit&nbsp;Components
-            </a>
-            ,{" "}
-            <a href="https://livekit.io/cloud?ref=meet" rel="noopener">
-              LiveKit&nbsp;Cloud
-            </a>{" "}
-            and Next.js.
-          </h2>
-        </div>
-        <Tabs selectedIndex={tabIndex} onTabSelected={onTabSelected}>
-          <DemoMeetingTab label="Demo" />
-          <CustomConnectionTab label="Custom" />
-        </Tabs>
+              <PlaygroundToast
+                message={toastMessage.message}
+                type={toastMessage.type}
+                onDismiss={() => {
+                  setToastMessage(null);
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {liveKitUrl ? (
+          <LiveKitRoom
+            className="flex flex-col h-full w-full"
+            serverUrl={liveKitUrl}
+            token={customToken ?? token}
+            audio={appConfig?.inputs.mic}
+            video={appConfig?.inputs.camera}
+            connect={shouldConnect}
+            onError={(e) => {
+              setToastMessage({ message: e.message, type: "error" });
+              console.error(e);
+            }}
+          >
+            <Playground
+              title={appConfig?.title}
+              githubLink={appConfig?.github_link}
+              outputs={outputs}
+              showQR={appConfig?.show_qr}
+              description={appConfig?.description}
+              themeColors={themeColors}
+              defaultColor={appConfig?.theme_color ?? "cyan"}
+              onConnect={handleConnect}
+              metadata={metadata}
+              videoFit={appConfig?.video_fit ?? "cover"}
+            />
+            <RoomAudioRenderer />
+            <StartAudio label="Click to enable audio playback" />
+          </LiveKitRoom>
+        ) : (
+          <PlaygroundConnect
+            accentColor={themeColors[0]}
+            onConnectClicked={(url, token) => {
+              handleConnect(true, { url, token });
+            }}
+          />
+        )}
       </main>
-      <footer data-lk-theme="default">
-        Hosted on{" "}
-        <a href="https://livekit.io/cloud?ref=meet" rel="noopener">
-          LiveKit Cloud
-        </a>
-        . Source code on{" "}
-        <a href="https://github.com/livekit/meet?ref=meet" rel="noopener">
-          GitHub
-        </a>
-        .
-      </footer>
     </>
   );
-};
+}
 
-export default Home;
+function createRoomName() {
+  return [generateRandomAlphanumeric(4), generateRandomAlphanumeric(4)].join(
+    "-"
+  );
+}
